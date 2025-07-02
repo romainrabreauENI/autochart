@@ -1,0 +1,6 @@
+streamlit
+pandas
+plotly
+kaleido
+python-pptx
+openpyxl
