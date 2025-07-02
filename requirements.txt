@@ -1,6 +1,7 @@
 streamlit
 pandas
-plotly
-kaleido
+matplotlib
 python-pptx
 openpyxl
+pillow
+
