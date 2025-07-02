@@ -1,7 +1,6 @@
-# app.py
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 from pptx import Presentation
 from pptx.util import Inches
 from io import BytesIO
@@ -14,56 +13,50 @@ if uploaded:
     df = pd.read_excel(uploaded)
     df['Mois'] = pd.to_datetime(df['Mois'])
     df = df.sort_values('Mois')
-    df['Durée'] = (
-        df['Temps effectif total']
-          .str.split(':')
-          .apply(lambda x: int(x[0]) + int(x[1]) / 60)
-    )
+    df['Durée'] = df['Temps effectif total'] \
+        .str.split(':') \
+        .apply(lambda x: int(x[0]) + int(x[1]) / 60)
     pivot = (
         df
-        .pivot_table(index='Mois',
-                     columns='E-formation',
-                     values='Durée',
-                     aggfunc='sum')
+        .pivot_table(index='Mois', columns='E-formation', values='Durée', aggfunc='sum')
         .reindex(sorted(df['Mois'].unique()), fill_value=0)
         .cumsum()
+        .reset_index()
     )
-    pivot = pivot.reset_index()
     pivot['Mois_str'] = pivot['Mois'].dt.strftime('%b %Y')
 
-    # --- Tracé Matplotlib ---
-    fig, ax = plt.subplots(figsize=(10,6))
-    ax.plot(pivot['Mois_str'], pivot['Bibliothèque Numérique ENI'],
-            marker='o', label='BNE')
-    ax.plot(pivot['Mois_str'], pivot['Bibliothèque Numérique ENI e-formations'],
-            marker='s', label='BNE e-formations')
-    ax.fill_between(pivot['Mois_str'], pivot['Bibliothèque Numérique ENI'], alpha=0.2)
-    ax.fill_between(pivot['Mois_str'], pivot['Bibliothèque Numérique ENI e-formations'], alpha=0.2)
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Heures cumulées")
-    ax.set_title("Temps effectif cumulé par e-formation")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
+    fig = px.area(
+        pivot,
+        x='Mois_str',
+        y=['Bibliothèque Numérique ENI', 'Bibliothèque Numérique ENI e-formations'],
+        title="Temps effectif cumulé par e-formation",
+        labels={'Mois_str':'Date','value':'Heures','variable':'E-formation'},
+        template='plotly_white'
+    )
+    fig.update_traces(mode='lines+markers')
+    fig.update_layout(
+        xaxis_tickangle=-45,
+        margin=dict(l=60, r=60, t=80, b=120),
+        legend=dict(orientation="h", x=0.5, xanchor="center", y=1.1)
+    )
 
-    st.pyplot(fig)
+    st.plotly_chart(fig, use_container_width=True)
 
-    # --- Préparation du buffer image pour PowerPoint ---
-    img_buf = BytesIO()
-    fig.savefig(img_buf, format="png", dpi=200)
-    img_buf.seek(0)
+    png_bytes = fig.to_image(format='png', width=1200, height=600, scale=2)
+    img_buf = BytesIO(png_bytes)
 
     prs = Presentation("TemplateGraph.pptx")
     slide = prs.slides[0]
+    slide_w, slide_h = prs.slide_width, prs.slide_height
     w, h = Inches(9), Inches(6)
-    left = (prs.slide_width - w) // 2
-    top  = (prs.slide_height - h) // 2
+    left = (slide_w - w) // 2
+    top  = (slide_h - h) // 2
     slide.shapes.add_picture(img_buf, left, top, width=w, height=h)
 
     out_buf = BytesIO()
     prs.save(out_buf)
     out_buf.seek(0)
 
-    st.success("Votre diapositive est prête :")
     st.download_button(
         "Télécharger la slide PPTX",
         data=out_buf.getvalue(),
@@ -72,4 +65,3 @@ if uploaded:
     )
 else:
     st.info("En attente de votre fichier…")
-
